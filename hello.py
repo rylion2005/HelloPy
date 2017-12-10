@@ -2,28 +2,19 @@
 
 # -*- coding: UTF-8 -*-
 
-
-"""
-This is a reST style.
-
-:param param1: this is a first param
-:param param2: this is a second param
-:returns: this is a description of what is returned
-:raises keyError: raises an exception
-"""
-
 import sys
 import getopt
+from optparse import OptionParser
 
 
-USAGE = \
-    '''
-        usage: python [option] ... [-i input | -o output ] [arg] ...
-        Options and arguments (and corresponding environment variables):
-        -i input  : input directory
-        -o output : output directory
-        -h help   : this help
-    '''
+USAGE = '''
+usage: python [option] ... [-i input | -o output ] [arg] ...
+
+Options and arguments (and corresponding environment variables):
+-i input  : input directory
+-o output : output directory
+-h help   : this help
+'''
 
 
 """
@@ -35,33 +26,80 @@ def usage():
     print USAGE
 
 
-'''
-    main function
-'''
+"""
+main
+
+This is a reST style.
+
+:param None: this is a first none param
+:returns: none
+:raises keyError: none
+"""
 
 
-def main(argv):
-    if argv is None:
-        argv = sys.argv
-        print usage()
+def init_args():
+
+    if len(sys.argv) <= 1:
+        usage()
     else:
-        opts, args = getopt.getopt(argv, "hi:o:", ["help", "input=", "output="])
+        try:
+            opts, args = getopt.getopt(sys.argv[1:], "i:o:h", ["help", "input=", "output="])
+        except getopt.GetoptError:
+            print '\nsorry, i don\'t know you !\n'
+            usage()
+            sys.exit()
+
         for opt, arg in opts:
             if opt in ("-h", "--help"):
-                print usage()
+                usage()
                 sys.exit()
             elif opt in ("-i", "--input"):
                 print arg
             elif opt in ("-o", "--output"):
                 print arg
             else:
-                print 'over'
-        print 'for over !'
+                print '\nWho are you?\n'
+                usage()
+
+
+def init_args0():
+    try:
+        parser = OptionParser()
+
+        parser.add_option(
+            "-i", "--input",
+            action="store",
+            dest="input",
+            type=str,
+            default="",
+            help="input directory"
+        )
+
+        parser.add_option(
+            "-o", "--output",
+            action="store",
+            dest="output",
+            type=str,
+            default="",
+            help="output directory"
+        )
+
+        (options, args) = parser.parse_args()
+        if options.input is not None:
+            print "input"
+            print args
+        elif options.output is not None:
+            print "output"
+            print args
+        else:
+            parser.print_help()
+    except Exception as ex:
+        print("exception :{0}".format(str(ex)))
+        print args
 
 
 '''
     main entry
 '''
 if __name__ == "__main__":
-    # print sys.argv
-    main(sys.argv[1:])
+    init_args()
