@@ -17,7 +17,7 @@ version : 0.1.0
    date : 2017-12-12
 authtor : Julien Ryan
 
-usage: python [option] ... [-h|-w|-e|-r|-b|-s|--ssid|--key] [arg] ...
+usage: python [option] ... [-h|-i|-o|-w|-e|-r|-b|-s|-d] [arg] ...
 
 Options and arguments (and corresponding environment variables):
 -h help         : this help
@@ -41,8 +41,8 @@ Options and arguments (and corresponding environment variables):
 '''
 
 
-short_options = 'hwerbs:c:d:'
-long_options = ['help', 'ssid=', 'key=', 'audio']
+short_options = 'hwerbi:o:s:c:d:'
+long_options = ['help', 'input=', 'output=', 'ssid=', 'key=', 'audio']
 now = time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))
 input_file = ''
 output_file = ''
@@ -74,7 +74,7 @@ def poll_device():
             continue
         else:
             os.system('adb root')
-            time.sleep(1)
+            time.sleep(2)
             os.system('adb remount')
             time.sleep(1)
             print 'device found !'
@@ -235,9 +235,10 @@ dump audio information
 '''
 
 
-def dump_audio():
+def dump_audio(outfile):
     print 'dump audio'
-    audiodump = 'audiodumps.txt'
+
+    audiodump = outfile
     commandss = (
         'adb shell dumpsys media_session',
         'adb shell dumpsys media_router',
@@ -250,10 +251,17 @@ def dump_audio():
         'adb shell ps')
 
     poll_device()
-    clear_log(audiodump)
+
+    if (audiodump is None) or (len(audiodump) == 0):
+        audiodump = 'audiodumps.txt'
+
+    print 'dump file: ' + audiodump
+    if os.path.isfile(audiodump):
+        os.remove(audiodump)
+
     for cmmd in commandss:
         print cmmd
-        os.popen('echo ' + '"\n==================================================\n"' + cmmd + ' >> ' + audiodump)
+        os.popen('echo ' + '"\n==========\n"' + cmmd + ' >> ' + audiodump)
         os.popen(cmmd + ' >> ' + audiodump)
 
 
@@ -290,8 +298,6 @@ def decompile_apk(apkfile):
     os.popen(dex2jar)
 
     os.remove(tmpzipfile)
-    
-
 
 
 '''
@@ -359,6 +365,8 @@ initialize the command line arguments
 
 def init_args():
     global device
+    global input_file
+    global output_file
 
     if len(sys.argv) <= 1:
         usage()
@@ -368,20 +376,23 @@ def init_args():
     ssid = ''
     key = ''
 
+    audio_dump_request = False
+
     try:
         opts, args = getopt.getopt(sys.argv[1:], short_options, long_options)
     except getopt.GetoptError:
         print '\nsorry, i don\'t know you !\n'
         usage()
         sys.exit(-1)
+
     for opt, arg in opts:
         if opt in ("-h", "--help"):
             usage()
             sys.exit()
         elif opt in ("-i", "--input"):
-            print arg
+            input_file = arg
         elif opt in ("-o", "--output"):
-            print arg
+            output_file = arg
         elif opt == '-s':
             device = arg
         elif opt == '-e':
@@ -401,7 +412,7 @@ def init_args():
         elif opt == '--key':
             key = arg
         elif opt == '--audio':
-            dump_audio()
+            audio_dump_request = True;
         else:
             print '\nWho are you?\n'
             usage()
@@ -415,6 +426,9 @@ def init_args():
             sys.exit(-1)
         else:
             write_wifi(ssid, key)
+
+    if audio_dump_request is True:
+        dump_audio(output_file)
 
 
 '''
