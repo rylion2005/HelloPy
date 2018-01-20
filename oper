@@ -1,0 +1,210 @@
+#!/usr/bin/env python
+
+# -*- coding: UTF-8 -*-
+
+import getopt
+import os
+import sys
+import chardet
+import sys
+import os
+
+
+USAGE = '''
+version : 0.5
+   date : 2018-1-18
+author : julian Ryan
+
+usage: python [command] [option] ... [-h|-p|-i|-o] [arg] ...
+
+[command]
+rename  : rename files as 'xx.txt' in path by incremental number
+charset : set file charset encoding
+
+[options] and ]arguments]
+-h help      : this help
+-p <path>    : input path
+-i <input>   : input file
+-o <out>     : output file
+-c <charset> : charset
+'''
+
+COMMANDS = ['rename', 'charset']
+SHORT_OPTS = 'hi:o:p:c'
+LONG_OPTS = ['help', 'path=', 'input=', 'output=', 'charset=']
+
+
+'''
+usage
+print command usage
+'''
+
+
+def usage():
+    print USAGE
+
+
+'''
+rename_files
+rename all files in path by incremental number
+:path: directory
+'''
+
+
+def rename_files(path):
+    p = os.getcwd()
+    print 'rename all files : ' + path
+
+    if path is not None:
+        p = path
+
+    if not os.path.isdir(p):
+        print 'path not exist'
+        sys.exit(0)
+
+    files = os.listdir(p)
+    i = 0
+    for f in files:
+        if os.path.isdir(os.path.join(p, f)) is True:
+            continue
+        print f
+        i += 1
+        name = str(i) + '.txt'
+        os.rename(os.path.join(p, f), os.path.join(p, name))
+
+
+'''
+detect_charset
+change charset of all files in path
+:path: directory
+'''
+
+
+def detect_charset(path):
+    p = os.getcwd()
+    print 'detect charset'
+
+    if path is not None:
+        p = path
+
+    if not os.path.isdir(p):
+        print 'path not exist'
+        sys.exit(0)
+
+    files = os.listdir(p)
+    for f in files:
+        if os.path.isdir(os.path.join(p, f)) is True:
+            continue
+        f = open(os.path.join(path, f), 'r')
+        data = f.read()
+        f.close()
+        encoding = chardet.detect(data)
+        print f, encoding
+
+
+'''
+change_charset
+change charset of all files in path as UTF-8
+:path: directory
+'''
+
+
+def change_charset(path, charset):
+    p = os.getcwd()
+    print 'change charset ', charset
+
+    if path is not None:
+        p = path
+
+    if not os.path.isdir(p):
+        print 'path not exist'
+        sys.exit(0)
+
+    files = os.listdir(p)
+    for f in files:
+        if os.path.isdir(os.path.join(p, f)) is True:
+            continue
+        f = open(os.path.join(path, f), 'r')
+        data = f.read()
+        f.close()
+        encoding = chardet.detect(data)["encoding"]
+        print f, encoding
+        if encoding not in ("UTF-8-SIG", "UTF-16LE", "UTF-8"):
+            try:
+                gb_content = data.decode("gb18030")
+                gb_content.encode('UTF-8')
+                f = open(os.path.join(path, f), 'w')
+                f.write(gb_content.encode('UTF-8'))
+            except:
+                print "except:"
+
+
+'''
+init_args
+process input args
+'''
+
+
+def init_args():
+
+    mycommand = None
+    paramC = None
+    paramP = None
+    paramI = None
+    paramO = None
+
+    if len(sys.argv) < 2:
+        usage()
+        sys.exit(0)
+
+    existed = False
+    for c in COMMANDS:
+        if c == sys.argv[1]:
+            existed = True
+            mycommand = c
+            break
+    if existed is False:
+        usage()
+        sys.exit(0)
+
+    try:
+        opts, args = getopt.getopt(sys.argv[2:], SHORT_OPTS, LONG_OPTS)
+    except getopt.GetoptError:
+        usage()
+        sys.exit(-1)
+
+    for opt, arg in opts:
+        if opt in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif opt == '-p':
+            paramP = arg
+        elif opt == '-c':
+            paramC = arg
+        elif opt in ("-i", "--input"):
+            paramI = arg
+            print 'input' + arg
+        elif opt in ("-o", "--output"):
+            paramO = arg
+            print 'output' + arg
+        else:
+            usage()
+
+    if mycommand == 'rename':
+        rename_files(paramP)
+    elif mycommand == 'charset':
+        print paramP, paramC
+        if paramC is not None:
+            change_charset(paramP, paramC)
+        else:
+            detect_charset(paramP)
+    else:
+        usage()
+
+
+'''
+    main entry
+'''
+if __name__ == "__main__":
+    init_args()
+    print '\n......All finished......\n'
