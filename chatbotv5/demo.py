@@ -30,7 +30,7 @@ init_learning_rate = 1
 min_freq = 10
 
 # 训练次数
-TRAIN_STEPS = 100
+TRAIN_STEPS = 50000
 
 
 wordToken = word_token.WordToken()
@@ -77,10 +77,17 @@ def get_samples(train_set, batch_num):
     """构造样本数据
 
     :return:
-        encoder_inputs: [array([0, 0], dtype=int32), array([0, 0], dtype=int32), array([5, 5], dtype=int32),
-                        array([7, 7], dtype=int32), array([9, 9], dtype=int32)]
-        decoder_inputs: [array([1, 1], dtype=int32), array([11, 11], dtype=int32), array([13, 13], dtype=int32),
-                        array([15, 15], dtype=int32), array([2, 2], dtype=int32)]
+        encoder_inputs: [array([0, 0], dtype=int32), 
+                         array([0, 0], dtype=int32), 
+                         array([5, 5], dtype=int32),
+                         array([7, 7], dtype=int32), 
+                         array([9, 9], dtype=int32)]
+
+        decoder_inputs: [array([1, 1], dtype=int32),   ## GO_ID
+                         array([11, 11], dtype=int32), 
+                         array([13, 13], dtype=int32),
+                         array([15, 15], dtype=int32), 
+                         array([2, 2], dtype=int32)]   ## EOS_ID
     """
     # train_set = [[[5, 7, 9], [11, 13, 15, EOS_ID]], [[7, 9, 11], [13, 15, 17, EOS_ID]], [[15, 17, 19], [21, 23, 25, EOS_ID]]]
     raw_encoder_input = []
@@ -200,14 +207,14 @@ def train():
                 previous_losses.append(loss_ret)
 
                 # 模型持久化
-                saver.save(sess, './model/demo')
-                tf.train.write_graph(sess.graph_def, '', './model/graph.pb')
+                saver.save(sess, 'model/model.ckpt')
+                tf.train.write_graph(sess.graph_def, '', 'model/graphdef.pb')
 
         # 保存最后一次模型数据和训练数据
         saver.save(sess, 'last/model.ckpt')
         tf.train.write_graph(sess.graph_def, '', 'last/graphdef.pb')
         # 保存模型数据
-        file_writer = tf.summary.FileWriter('last/graphlogs', sess.graph)
+        file_writer = tf.summary.FileWriter('last/summarylogs', sess.graph)
         # 导出当前计算图的GraphDef部分  
         graph_def = tf.get_default_graph().as_graph_def()
         # 所有的变量节点保存为常数
@@ -223,7 +230,7 @@ def predict():
     """
     with tf.Session() as sess:
         encoder_inputs, decoder_inputs, target_weights, outputs, loss, update, saver, learning_rate_decay_op, learning_rate = get_model(feed_previous=True)
-        saver.restore(sess, './model/demo')
+        saver.restore(sess, 'model/model.ckpt')
         sys.stdout.write("> ")
         sys.stdout.flush()
         input_seq = sys.stdin.readline()
