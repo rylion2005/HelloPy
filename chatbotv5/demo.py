@@ -9,6 +9,9 @@ import word_token
 import jieba
 import random
 
+from tensorflow.python.framework import graph_util  
+from tensorflow.python.platform import gfile 
+
 # 输入序列长度
 input_seq_len = 5
 # 输出序列长度
@@ -25,6 +28,10 @@ size = 8
 init_learning_rate = 1
 # 在样本中出现频率超过这个值才会进入词表
 min_freq = 10
+
+# 训练次数
+TRAIN_STEPS = 100
+
 
 wordToken = word_token.WordToken()
 
@@ -175,7 +182,7 @@ def train():
 
         # 训练很多次迭代，每隔10次打印一次loss，可以看情况直接ctrl+c停止
         previous_losses = []
-        for step in xrange(20000):
+        for step in xrange(TRAIN_STEPS):
             sample_encoder_inputs, sample_decoder_inputs, sample_target_weights = get_samples(train_set, 1000)
             input_feed = {}
             for l in xrange(input_seq_len):
@@ -194,6 +201,20 @@ def train():
 
                 # 模型持久化
                 saver.save(sess, './model/demo')
+                tf.train.write_graph(sess.graph_def, '', './model/graph.pb')
+
+        # 保存最后一次模型数据和训练数据
+        saver.save(sess, 'last/model.ckpt')
+        tf.train.write_graph(sess.graph_def, '', 'last/graphdef.pb')
+        # 保存模型数据
+        file_writer = tf.summary.FileWriter('last/graphlogs', sess.graph)
+        # 导出当前计算图的GraphDef部分  
+        graph_def = tf.get_default_graph().as_graph_def()
+        # 所有的变量节点保存为常数
+        output_graph_def = graph_util.convert_variables_to_constants(sess, graph_def, []) 
+        # 将计算图写入到模型文件中  
+        model_f = tf.gfile.GFile("last/variables2constants_graphdef.pb","wb")
+        model_f.write(output_graph_def.SerializeToString())
 
 
 def predict():
@@ -215,10 +236,15 @@ def predict():
                 input_feed = {}
                 for l in xrange(input_seq_len):
                     input_feed[encoder_inputs[l].name] = sample_encoder_inputs[l]
+                    print "encoder[", l, "].name=", encoder_inputs[l].name
+                    print "encoder, input_feed=" , input_feed[encoder_inputs[l].name]
                 for l in xrange(output_seq_len):
                     input_feed[decoder_inputs[l].name] = sample_decoder_inputs[l]
                     input_feed[target_weights[l].name] = sample_target_weights[l]
+                    print "decoder[", l, "].name=", decoder_inputs[l].name
+                    print "decoder,input_feed=" , input_feed[decoder_inputs[l].name]
                 input_feed[decoder_inputs[output_seq_len].name] = np.zeros([2], dtype=np.int32)
+                print '\ndecoder last input name=', decoder_inputs[output_seq_len].name
 
                 # 预测输出
                 outputs_seq = sess.run(outputs, input_feed)
