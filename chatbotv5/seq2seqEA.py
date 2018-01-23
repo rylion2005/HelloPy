@@ -1,6 +1,8 @@
 # coding:utf-8
 # author: lichuang
 # mail: shareditor.com@gmail.com
+
+import os
 import sys
 import numpy as np
 import tensorflow as tf
@@ -8,6 +10,7 @@ from tensorflow.contrib.legacy_seq2seq.python.ops import seq2seq
 import word_token
 import jieba
 import random
+import shutil
 
 from tensorflow.python.framework import graph_util  
 from tensorflow.python.platform import gfile 
@@ -30,7 +33,8 @@ init_learning_rate = 1
 min_freq = 10
 
 # 训练次数
-TRAIN_STEPS = 20000
+TRAIN_STEPS = 20
+
 
 wordToken = word_token.WordToken()
 
@@ -76,10 +80,17 @@ def get_samples(train_set, batch_num):
     """构造样本数据
 
     :return:
-        encoder_inputs: [array([0, 0], dtype=int32), array([0, 0], dtype=int32), array([5, 5], dtype=int32),
-                        array([7, 7], dtype=int32), array([9, 9], dtype=int32)]
-        decoder_inputs: [array([1, 1], dtype=int32), array([11, 11], dtype=int32), array([13, 13], dtype=int32),
-                        array([15, 15], dtype=int32), array([2, 2], dtype=int32)]
+        encoder_inputs: [array([0, 0], dtype=int32), 
+                         array([0, 0], dtype=int32), 
+                         array([5, 5], dtype=int32),
+                         array([7, 7], dtype=int32), 
+                         array([9, 9], dtype=int32)]
+
+        decoder_inputs: [array([1, 1], dtype=int32),   ## GO_ID
+                         array([11, 11], dtype=int32), 
+                         array([13, 13], dtype=int32),
+                         array([15, 15], dtype=int32), 
+                         array([2, 2], dtype=int32)]   ## EOS_ID
     """
     # train_set = [[[5, 7, 9], [11, 13, 15, EOS_ID]], [[7, 9, 11], [13, 15, 17, EOS_ID]], [[15, 17, 19], [21, 23, 25, EOS_ID]]]
     raw_encoder_input = []
@@ -169,9 +180,17 @@ def train():
     """
     训练过程
     """
-    # train_set = [[[5, 7, 9], [11, 13, 15, EOS_ID]], [[7, 9, 11], [13, 15, 17, EOS_ID]],
+    # train_set = [[[5, 7, 9], [11, 13, 15, EOS_ID]], 
+    #              [[7, 9, 11], [13, 15, 17, EOS_ID]],
     #              [[15, 17, 19], [21, 23, 25, EOS_ID]]]
     train_set = get_train_set()
+
+    # 清除log目录
+    if os.path.isdir('./model'):
+        shutil.rmtree('model')
+ 
+    builder = tf.saved_model.builder.SavedModelBuilder('./model/savemodel')
+   
     with tf.Session() as sess:
 
         encoder_inputs, decoder_inputs, target_weights, outputs, loss, update, saver, learning_rate_decay_op, learning_rate = get_model()
@@ -199,19 +218,29 @@ def train():
                 previous_losses.append(loss_ret)
 
                 # 模型持久化
-                saver.save(sess, './model/demo')
-                tf.train.write_graph(sess.graph_def, '', './model/graph.pb')
+                #saver.save(sess, 'model/saver/model.ckpt')
+                #tf.train.write_graph(sess.graph_def, '', 'model/graphdef.pb')
 
-        saver.save(sess, './last/model.ckpt')
-        tf.train.write_graph(sess.graph_def, '', './last/graph.pb')
+        # 保存最后一次模型数据和训练数据 checkpoint
+        saver.save(sess, './model/saver/model.ckpt')
+        tf.train.write_graph(sess.graph, './model/saver/', 'graph.pb', False)
+        tf.train.write_graph(sess.graph_def, './model/saver/', 'graphdef.pb', False)
 
-        # 导出当前计算图的GraphDef部分  
+        # 保存模型数据summary, 提供给tensorboard使用
+        writer = tf.summary.FileWriter('./model/summary', sess.graph)
+
+        # 转换所有输出变量为常量计算图
         graph_def = tf.get_default_graph().as_graph_def()
-        # 所有的变量节点保存为常数
+        # 输出节点名称列表， TODO later
         output_graph_def = graph_util.convert_variables_to_constants(sess, graph_def, []) 
         # 将计算图写入到模型文件中  
-        model_f = tf.gfile.GFile("./last/modelgraph.pb","wb")  
-        model_f.write(output_graph_def.SerializeToString())
+        gfile = tf.gfile.GFile("./model/v2c_graphdef.pb","wb")
+        gfile.write(output_graph_def.SerializeToString())
+
+        # save model builder
+        builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.TRAINING])
+        #builder.add_meta_graph(["bar-tag", "baz-tag"])
+        builder.save()
 
 
 def predict():
@@ -220,7 +249,7 @@ def predict():
     """
     with tf.Session() as sess:
         encoder_inputs, decoder_inputs, target_weights, outputs, loss, update, saver, learning_rate_decay_op, learning_rate = get_model(feed_previous=True)
-        saver.restore(sess, './model/demo')
+        saver.restore(sess, 'model/saver/model.ckpt')
         sys.stdout.write("> ")
         sys.stdout.flush()
         input_seq = sys.stdin.readline()
@@ -233,6 +262,8 @@ def predict():
                 input_feed = {}
                 for l in xrange(input_seq_len):
                     input_feed[encoder_inputs[l].name] = sample_encoder_inputs[l]
+                    print "encoder[", l, "].name=", encoder_inputs[l].name
+                    print "encoder, input_feed=" , sample_encoder_inputs[l]
                 for l in xrange(output_seq_len):
                     input_feed[decoder_inputs[l].name] = sample_decoder_inputs[l]
                     input_feed[target_weights[l].name] = sample_target_weights[l]
