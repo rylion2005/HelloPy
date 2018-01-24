@@ -33,7 +33,7 @@ init_learning_rate = 1
 min_freq = 10
 
 # 训练次数
-TRAIN_STEPS = 20
+TRAIN_STEPS = 50000
 
 
 wordToken = word_token.WordToken()
@@ -183,21 +183,20 @@ def train():
     # train_set = [[[5, 7, 9], [11, 13, 15, EOS_ID]], 
     #              [[7, 9, 11], [13, 15, 17, EOS_ID]],
     #              [[15, 17, 19], [21, 23, 25, EOS_ID]]]
-    train_set = get_train_set()
 
+    output_node_names = ['embedding_attention_seq2seq/embedding_attention_decoder/attention_decoder/AttnOutputProjection/BiasAdd', 'embedding_attention_seq2seq/embedding_attention_decoder/attention_decoder/AttnOutputProjection_1/BiasAdd','embedding_attention_seq2seq/embedding_attention_decoder/attention_decoder/AttnOutputProjection_2/BiasAdd','embedding_attention_seq2seq/embedding_attention_decoder/attention_decoder/AttnOutputProjection_3/BiasAdd','embedding_attention_seq2seq/embedding_attention_decoder/attention_decoder/AttnOutputProjection_4/BiasAdd']
+
+    train_set = get_train_set()
     # 清除log目录
     if os.path.isdir('./model'):
         shutil.rmtree('model')
- 
+    # save model builder
     builder = tf.saved_model.builder.SavedModelBuilder('./model/savemodel')
-   
     with tf.Session() as sess:
 
         encoder_inputs, decoder_inputs, target_weights, outputs, loss, update, saver, learning_rate_decay_op, learning_rate = get_model()
-
         # 全部变量初始化
-        sess.run(tf.global_variables_initializer())
-
+        sess.run(tf.global_variables_initializer()) 
         # 训练很多次迭代，每隔10次打印一次loss，可以看情况直接ctrl+c停止
         previous_losses = []
         for step in xrange(TRAIN_STEPS):
@@ -216,30 +215,27 @@ def train():
                 if len(previous_losses) > 5 and loss_ret > max(previous_losses[-5:]):
                     sess.run(learning_rate_decay_op)
                 previous_losses.append(loss_ret)
+                # 保存模型数据和训练数据 checkpoint
+                saver.save(sess, './model/saver/model.ckpt')
+                tf.train.write_graph(sess.graph, './model/saver/', 'graph.pb', False)
+                # 固化模型并保存
+                graph_def = tf.get_default_graph().as_graph_def()
+                output_graph_def = graph_util.convert_variables_to_constants(sess, graph_def, output_node_names)
+                gfile = tf.gfile.GFile("./model/graphs.pb","wb")
+                gfile.write(output_graph_def.SerializeToString())
 
-                # 模型持久化
-                #saver.save(sess, 'model/saver/model.ckpt')
-                #tf.train.write_graph(sess.graph_def, '', 'model/graphdef.pb')
-
-        # 保存最后一次模型数据和训练数据 checkpoint
-        saver.save(sess, './model/saver/model.ckpt')
-        tf.train.write_graph(sess.graph, './model/saver/', 'graph.pb', False)
-        tf.train.write_graph(sess.graph_def, './model/saver/', 'graphdef.pb', False)
-
-        # 保存模型数据summary, 提供给tensorboard使用
-        writer = tf.summary.FileWriter('./model/summary', sess.graph)
-
-        # 转换所有输出变量为常量计算图
-        graph_def = tf.get_default_graph().as_graph_def()
-        # 输出节点名称列表， TODO later
-        output_graph_def = graph_util.convert_variables_to_constants(sess, graph_def, []) 
-        # 将计算图写入到模型文件中  
-        gfile = tf.gfile.GFile("./model/v2c_graphdef.pb","wb")
-        gfile.write(output_graph_def.SerializeToString())
-
+        #print '--------------------------------------------------'
+        #print 'dump graph information: '
+        #print 'collection keys: ', sess.graph.get_all_collection_keys()
+        #print 'name_scope:', sess.graph.get_name_scope()
+        #print 'get_operations:', sess.graph.get_operations()
+        #print 'encoder_inputs: ', encoder_inputs
+        #print 'outputs: ', outputs
+        #print '--------------------------------------------------'
+        # 保存模型summary, 提供给tensorboard使用
+        writer = tf.summary.FileWriter('./model/summary', sess.graph) 
         # save model builder
         builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.TRAINING])
-        #builder.add_meta_graph(["bar-tag", "baz-tag"])
         builder.save()
 
 
@@ -271,6 +267,12 @@ def predict():
 
                 # 预测输出
                 outputs_seq = sess.run(outputs, input_feed)
+                #print '--------------------------------------------------'
+                #print 'dump predict'
+                #print 'input feed: ', input_feed
+                #print 'outputs: ', outputs
+                #print 'outputs_seq: ', outputs_seq
+                #print '--------------------------------------------------'
                 # 因为输出数据每一个是num_decoder_symbols维的，因此找到数值最大的那个就是预测的id，就是这里的argmax函数的功能
                 outputs_seq = [int(np.argmax(logit[0], axis=0)) for logit in outputs_seq]
                 # 如果是结尾符，那么后面的语句就不输出了
