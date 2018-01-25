@@ -221,7 +221,7 @@ def train():
                 # 固化模型并保存
                 graph_def = tf.get_default_graph().as_graph_def()
                 output_graph_def = graph_util.convert_variables_to_constants(sess, graph_def, output_node_names)
-                gfile = tf.gfile.GFile("./model/graphs.pb","wb")
+                gfile = tf.gfile.GFile("./model/freezegraph.pb","wb")
                 gfile.write(output_graph_def.SerializeToString())
 
         #print '--------------------------------------------------'
